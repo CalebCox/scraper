@@ -51,7 +51,7 @@ def get_categories():
 
     print('📫 Response Status:')
     if result.status_code == 200:
-        print('📨 Result Received - ' + str(result.status_code))
+        print('📨 Response Received - ' + str(result.status_code))
     else:
         print('📭 Could not retrieve data')
         pass
@@ -60,8 +60,9 @@ def get_categories():
 
     soup = BeautifulSoup(content, features='lxml')
     links = soup.find_all("a", "leftbar_catLink")
-    cat_links = [{"title": link.get_text(), "url": link.get("href")}
-                 for link in links]
+    # cat_links = [{"title": link.get_text(), "url": link.get("href")}
+    #              for link in links]
+    cat_links = [{"title": links[5].get_text(), "url": links[5].get("href")}]
     return cat_links
 
 
@@ -106,6 +107,7 @@ def get_pages(sub_cats):
 
         page_count = soup.select("#page > option:last-child")
         product_total = soup.find("td", "pageShowing")
+
         if product_total is not None:
             product_total = product_total.get_text()
             # grab product showing text from page ex: showing 1-50 of 80

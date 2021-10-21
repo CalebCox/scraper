@@ -1,83 +1,128 @@
 import os
 import csv
+from bs4.element import PreformattedString
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from url_validation import generate_links, progressBar
 
 # setup environment variable access
 load_dotenv()
 
-s = requests.Session()
 
-# Setup session details for authenticated call
-cookies = {
-    'layout': '1',
-    'JSESSIONID': os.getenv('SESSIONID'),
-}
+def get_data():
+    s = requests.Session()
 
-data = {
-    'forwardAction': '/account.jhtm',
-    'username': os.getenv('USER_ID'),
-    'password': os.getenv('PASSWORD')
-}
+    # Setup session details for authenticated call
+    cookies = {
+        'layout': '1',
+        'JSESSIONID': os.getenv('SESSIONID'),
+    }
 
-print('🔐 Attempting to authenticate')
-auth = s.post(os.getenv('AUTH_URL'), cookies=cookies, data=data)
+    data = {
+        'forwardAction': '/account.jhtm',
+        'username': os.getenv('USER_ID'),
+        'password': os.getenv('PASSWORD')
+    }
 
-print('🤝 Authenticated Status:')
-if auth.status_code == 200:
-    print('✅ Authenticated - ' + str(auth.status_code))
-else:
-    print('❗❗❗ - Failed to Authenticate - ' + str(auth.status_code))
-    pass
+    print('🔐 Attempting to authenticate')
+    auth = s.post(os.getenv('AUTH_URL'), cookies=cookies, data=data)
 
-# The below is a test setup until valid product links can be generated properly
-product_id = 2727
+    print('🤝 Authenticated Status:')
+    if auth.status_code == 200:
+        print('✅ Authenticated - ' + str(auth.status_code))
+    else:
+        print('❗❗❗ - Failed to Authenticate - ' + str(auth.status_code))
+        pass
 
-# Attempt to navigate to product page
-print('📬 Sending page request')
-# this URL will be dynamic in the future
-result = s.get(os.getenv('BASE_URL') + 'product.jhtm?id=' + str(product_id))
+    data = generate_links()
 
-# Return success of failure of product page request
-print('📫 Response Status:')
-if result.status_code == 200:
-    print('📨 Result Received - ' + str(result.status_code))
-else:
-    print('📭 Could not retrieve data')
-    pass
+    links = data[0]
+    not_found = data[1]
 
-# get product page content
-content = result.content
+    products = []
 
-soup = BeautifulSoup(content, features='lxml')
+    for link in progressBar(links, prefix='Product Details:', suffix='Complete', length=50):
+        result = s.get(os.getenv('BASE_URL') + link.lstrip("/"))
 
-# error handling for a possible invalid URL
-message = soup.find("div", "message")
-if message is not None and message.get_text() == 'Product not found.':
-    print('🛑 - No product found for id ' + str(product_id))
-else:
-    title = soup.select(".details_item_name > h1")[0].get_text()
-    sku = soup.find("div", "details_sku").get_text()
-    type = soup.find("div", "details_short_desc").get_text()
-    description = soup.find("div", "details_long_desc").get_text()
-    image = soup.find("img", "details_image")
-    image_src = image.get("src")
-    image_alt = image.get("alt")
-    price = soup.find("td", "price").get_text()
-    unit = soup.find("td", "caseContent").get_text().strip()
-    manufacturer = soup.select(
-        ".details_fields tr:nth-child(4) > .details_field_value_row1")[0].get_text()
+        # get product page content
+        content = result.content
 
-# print product details, this will be changed to export to a CSV file
-    print('🛒 ---- PRODUCT DETAILS ----')
-    print('title: ' + title)
-    print('sku: ' + sku)
-    print('type: ' + type)
-    print('description: ' + description)
-    print('image_src: ' + image_src)
-    print('image_alt: ' + image_alt)
-    print('price: ' + price)
-    print('unit: ' + unit)
-    print('manufacturer: ' + manufacturer)
-    print('  ----------- ')
+        soup = BeautifulSoup(content, features='lxml')
+
+        title = ''
+        sku = ''
+        type = ''
+        description = ''
+        price = ''
+        unit = ''
+        manufacturer = ''
+        category = ''
+        sub_category = ''
+
+        if soup.select(".details_item_name > h1") is not None and len(soup.select(".details_item_name > h1")) > 0:
+            title = soup.select(".details_item_name > h1")[0].get_text()
+
+        if soup.find("div", "details_sku") is not None:
+            sku = soup.find("div", "details_sku").get_text()
+
+        if soup.find("div", "details_short_desc") is not None:
+            type = soup.find("div", "details_short_desc").get_text()
+
+        if soup.find("div", "details_long_desc") is not None:
+            description = soup.find("div", "details_long_desc").get_text()
+
+        if soup.find("img", "details_image") is not None:
+            image = soup.find("img", "details_image")
+            image_src = image.get("src")
+            image_alt = image.get("alt")
+
+        if soup.find("td", "price") is not None:
+            price = soup.find("td", "price").get_text()
+
+        if soup.find("td", "caseContent") is not None:
+            unit = soup.find("td", "caseContent").get_text().strip()
+
+        if soup.select(
+                ".details_fields tr:nth-child(4) > .details_field_value_row1") is not None and len(soup.select(
+                ".details_fields tr:nth-child(4) > .details_field_value_row1")) > 0:
+            manufacturer = soup.select(
+                ".details_fields tr:nth-child(4) > .details_field_value_row1")[0].get_text()
+
+        breadcrumbs = soup.find_all("a", "breadcrumb")
+
+        if breadcrumbs is not None and len(breadcrumbs) > 0:
+            category = breadcrumbs[0].get_text()
+            if len(breadcrumbs) > 1:
+                sub_category = breadcrumbs[1].get_text()
+
+        product = {
+            "title": title,
+            "sku": sku,
+            "type": type,
+            "description": description,
+            "image": image,
+            "image_src": image_src,
+            "image_alt": image_alt,
+            "price": price,
+            "unit": unit,
+            "manufacturer": manufacturer,
+            "category": category,
+            "sub_category": sub_category
+        }
+
+        products.append(product)
+
+    return products, not_found
+    # print product details, this will be changed to export to a CSV file
+    # print('🛒 ---- PRODUCT DETAILS ----')
+    # print('title: ' + title)
+    # print('sku: ' + sku)
+    # print('type: ' + type)
+    # print('description: ' + description)
+    # print('image_src: ' + image_src)
+    # print('image_alt: ' + image_alt)
+    # print('price: ' + price)
+    # print('unit: ' + unit)
+    # print('manufacturer: ' + manufacturer)
+    # print('  ----------- ')
