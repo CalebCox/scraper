@@ -114,15 +114,3 @@ def get_data():
         products.append(product)
 
     return products, not_found
-    # print product details, this will be changed to export to a CSV file
-    # print('🛒 ---- PRODUCT DETAILS ----')
-    # print('title: ' + title)
-    # print('sku: ' + sku)
-    # print('type: ' + type)
-    # print('description: ' + description)
-    # print('image_src: ' + image_src)
-    # print('image_alt: ' + image_alt)
-    # print('price: ' + price)
-    # print('unit: ' + unit)
-    # print('manufacturer: ' + manufacturer)
-    # print('  ----------- ')
